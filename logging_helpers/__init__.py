@@ -77,7 +77,6 @@ class KeyValueMutator(object):
             if key not in RESERVED_KEYWORDS:
                 pairs.append([key, value])
 
-        print pairs
         if pairs:
             pairs.sort(key=lambda k: k[0])
 

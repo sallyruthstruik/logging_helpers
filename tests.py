@@ -1,3 +1,4 @@
+# coding=utf-8
 import logging
 
 import pytest
@@ -38,8 +39,13 @@ def test_auto_extra_renderer(logger):
 
     assert isinstance(logger, LoggerWrapper)
     logger.addMutator(KeyValueMutator())
-    logger.warning("Message", key="value", nested={"inner": 123})
 
-    assert queue[0] == "Message key=value, nested={'inner': 123}"
+    logger.warning("Message", key="value", nested={"inner": 123})
+    assert queue[-1] == "Message key=value, nested={'inner': 123}"
+
+    logger.warning("Message", key="value", nested={u"Привет мир!": u"Привет"})
+    assert queue[-1] == "Message key=value, nested={u'Привет мир!': u'Привет'}"
+
+
 
 
