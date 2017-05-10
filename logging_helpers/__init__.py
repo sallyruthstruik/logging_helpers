@@ -1,8 +1,9 @@
+import copy
 import logging
 import threading
 from functools import wraps
-from logging import handlers
-
+from logging import handlers, raiseExceptions
+from logging import CRITICAL, INFO, DEBUG, WARN, WARNING, ERROR
 from pip._vendor import six
 
 l = logging.getLogger("root")
@@ -13,7 +14,7 @@ class _PatchLogging(object):
     def _get_patched(self, func):
         self._originals[func.__name__] = func
 
-        return wraps(func)(lambda *a, **k: LoggerWrapper(func(*a, **k)))
+        return wraps(func)(lambda *a, **k: LoggerWrapper.fromLogger(func(*a, **k)))
 
     def __call__(self):
         logging.getLogger = self._get_patched(logging.getLogger)
@@ -24,15 +25,30 @@ class _Context(object):
     _context = threading.local()
 
     def __init__(self):
+        self.mutators = []
+        self._check_data()
+
+    def _check_data(self):
         if not hasattr(self._context, "data"):
             self._context.data = {}
 
     def addContext(self, data):
+        self._check_data()
+
         for key, value in six.iteritems(data):
             self._context.data[key] = value
 
+    def addMutator(self, mutator):
+        assert isinstance(mutator, Mutator)
+
+        self.mutators.append(mutator)
+
     def getContext(self):
+        self._check_data()
         return self._context.data
+
+    def getMutators(self):
+        return self.mutators
 
 global_context = _Context()
 
@@ -68,8 +84,8 @@ RESERVED_KEYWORDS = [
     "threadName"
 ]
 
-class KeyValueMutator(object):
-
+class KeyValueMutator(Mutator):
+    DELIMITER = "\n"
     def mutate(self, record):
         pairs = []
 
@@ -80,34 +96,61 @@ class KeyValueMutator(object):
         if pairs:
             pairs.sort(key=lambda k: k[0])
 
-        record.msg += " "+", ".join(
+        record.msg += " "+self.DELIMITER.join(
             "{}=%s".format(key)
             for key, _ in pairs
         )
-        record.args += tuple(
+
+        acc = tuple(
             v for _, v in pairs
         )
+        if not isinstance(record.args, tuple):
+            record.args = (record.args, ) + acc
+        else:
+            record.args += acc
 
         return record
 
 
 
-class LoggerWrapper(logging.Logger):
+class LoggerWrapper(object):
+
+    cache = {}
+
+    @classmethod
+    def fromLogger(cls, logger):
+        cls.cache.setdefault(id(logger), cls(logger))
+        return cls.cache[id(logger)]
 
     def __init__(self, originalLogger):
         self.originalLogger = originalLogger
         self.mutators = []  #type: list[Mutator]
 
-
         #patch handle
         self._originalHandle = self.originalLogger.handle
-        self.originalLogger.handle = self.handle
+
+        @wraps(self.originalLogger.handle)
+        def patched_handle(record):
+            record = copy.copy(record)
+
+            for m in self.getMutators():
+                record = m.mutate(record)
+            return self._originalHandle(record)
+
+        patched_handle._is_patched_handle = True
+
+        if not hasattr(self.originalLogger.handle, "_is_patched_handle"):
+            self.originalLogger.handle = patched_handle
 
     def addMutator(self, mutator):
         self.mutators.append(mutator)
 
+    def getMutators(self):
+        return global_context.getMutators() + self.mutators
+
     def critical(self, msg, *args, **kwargs):
-        super(LoggerWrapper, self).critical(msg, *args, **kwargs)
+        if self.isEnabledFor(CRITICAL):
+            self._log(CRITICAL, msg, args, **kwargs)
 
     def _log(self, level, msg, args, **kwargs):
         exc_info = kwargs.pop("exc_info", None)
@@ -123,31 +166,41 @@ class LoggerWrapper(logging.Logger):
         self.originalLogger._log(level, msg, args, exc_info, extra)
 
     def handle(self, record):
-        for m in self.mutators:
-            record = m.mutate(record)
-
-        self._originalHandle(record)
+        return self.originalLogger.handle(record)
 
     def log(self, level, msg, *args, **kwargs):
-        super(LoggerWrapper, self).log(level, msg, *args, **kwargs)
+        if not isinstance(level, int):
+            if raiseExceptions:
+                raise TypeError("level must be an integer")
+            else:
+                return
+        if self.isEnabledFor(level):
+            self._log(level, msg, args, **kwargs)
 
     def info(self, msg, *args, **kwargs):
-        super(LoggerWrapper, self).info(msg, *args, **kwargs)
+        if self.isEnabledFor(INFO):
+            self._log(INFO, msg, args, **kwargs)
 
     def debug(self, msg, *args, **kwargs):
-        super(LoggerWrapper, self).debug(msg, *args, **kwargs)
+        if self.isEnabledFor(DEBUG):
+            self._log(DEBUG, msg, args, **kwargs)
 
     def warning(self, msg, *args, **kwargs):
-        super(LoggerWrapper, self).warning(msg, *args, **kwargs)
+        if self.isEnabledFor(WARNING):
+            self._log(WARNING, msg, args, **kwargs)
 
     def exception(self, msg, *args, **kwargs):
-        super(LoggerWrapper, self).exception(msg, *args, **kwargs)
+        kwargs['exc_info'] = 1
+        self.error(msg, *args, **kwargs)
 
     def error(self, msg, *args, **kwargs):
-        super(LoggerWrapper, self).error(msg, *args, **kwargs)
+        if self.isEnabledFor(ERROR):
+            self._log(ERROR, msg, args, **kwargs)
 
     def getChild(self, suffix):
-        return LoggerWrapper(self.originalLogger.getChild(suffix))
+        return LoggerWrapper.fromLogger(self.originalLogger.getChild(suffix))
 
     def __getattr__(self, item):
         return getattr(self.originalLogger, item)
+
+from .django_middleware import DjangoRequestLog
