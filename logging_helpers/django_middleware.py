@@ -1,4 +1,7 @@
-import urlparse
+try:
+    import urlparse
+except:
+    from urllib import parse as urlparse
 
 import time
 

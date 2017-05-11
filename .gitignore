@@ -1,3 +1,6 @@
 .cache
 .idea
 *.pyc
+.tox
+dist
+*.egg-info

@@ -81,7 +81,8 @@ RESERVED_KEYWORDS = [
     "processName",
     "relativeCreated",
     "thread",
-    "threadName"
+    "threadName",
+    "stack_info"
 ]
 
 class KeyValueMutator(Mutator):
