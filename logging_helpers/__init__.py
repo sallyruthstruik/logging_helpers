@@ -114,7 +114,7 @@ class KeyValueMutator(Mutator):
 
 
 
-class LoggerWrapper(object):
+class LoggerWrapper(logging.Logger):
 
     cache = {}
 
@@ -200,6 +200,30 @@ class LoggerWrapper(object):
 
     def getChild(self, suffix):
         return LoggerWrapper.fromLogger(self.originalLogger.getChild(suffix))
+
+    def removeHandler(self, hdlr):
+        self.originalLogger.removeHandler(hdlr)
+
+    def isEnabledFor(self, level):
+        return self.originalLogger.isEnabledFor(level)
+
+    def setLevel(self, level):
+        return self.originalLogger.setLevel(level)
+
+    def getEffectiveLevel(self):
+        return self.originalLogger.getEffectiveLevel()
+
+    def callHandlers(self, record):
+        return self.originalLogger.callHandlers(record)
+
+    def addHandler(self, hdlr):
+        return self.originalLogger.addHandler(hdlr)
+
+    def makeRecord(self, name, level, fn, lno, msg, args, exc_info, func=None, extra=None):
+        return self.originalLogger.makeRecord(name, level, fn, lno, msg, args, exc_info, func, extra)
+
+    def findCaller(self):
+        return self.originalLogger.findCaller()
 
     def __getattr__(self, item):
         return getattr(self.originalLogger, item)
