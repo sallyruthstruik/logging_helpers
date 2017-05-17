@@ -1,3 +1,5 @@
+import json
+
 try:
     import urlparse
 except:
@@ -31,10 +33,21 @@ class DjangoRequestLog(object):
 
         request._request_stat_middleware_start_ts = time.time()
 
+        curlString = "curl -v -X{method} {body} --cookie \"{cookie}\" http://{host}{url}".format(
+            method=request.method.upper(),
+            body="-d \"{}\"".format(json.dumps(request.body)) if (
+                request.body and request.META.get("CONTENT_TYPE") == "application/json"
+            ) else "",
+            cookie=request.META.get("HTTP_COOKIE", ""),
+            url=request.get_full_path(),
+            host=request.get_host()
+        )
+
         logging.getLogger("request_log").info(
             "New request", **{
                 "method": request.method,
-                "POST": dict(request.POST),
+                "body": request.body[:2000],
+                "curl": curlString,
                 "GET": dict(request.GET),
                 "headers": {
                     key: value
