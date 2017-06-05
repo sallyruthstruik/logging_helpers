@@ -12,6 +12,9 @@ class _PatchLogging(object):
     _originals = {}
 
     def _get_patched(self, func):
+        if func.__name__ in self._originals:
+            return func
+
         self._originals[func.__name__] = func
 
         return wraps(func)(lambda *a, **k: LoggerWrapper.fromLogger(func(*a, **k)))

@@ -1,5 +1,6 @@
 # coding=utf-8
 import logging
+from logging import Logger
 from threading import Event, Thread
 
 import pytest
@@ -12,6 +13,13 @@ def test_patching():
     assert type(logging.getLogger("root")) is LoggerWrapper
     assert type(logging.getLogger("some.test")) is LoggerWrapper
     assert type(logging.getLogger("some").getChild("other")) is LoggerWrapper
+    assert type(logging.getLogger("root").originalLogger) is Logger
+
+    #second patch has no effect
+    patch_logging()
+
+    assert type(logging.getLogger("root").originalLogger) is Logger
+
 
 @pytest.fixture
 def handler():
