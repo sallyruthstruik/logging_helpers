@@ -5,7 +5,7 @@ from functools import wraps
 from logging import handlers, raiseExceptions
 from logging import CRITICAL, INFO, DEBUG, WARN, WARNING, ERROR
 from pip._vendor import six
-
+from logging_helpers.compat import to_string
 l = logging.getLogger("root")
 
 class _PatchLogging(object):
@@ -112,6 +112,8 @@ class KeyValueMutator(Mutator):
             record.args = (record.args, ) + acc
         else:
             record.args += acc
+
+        record.args = tuple(map(to_string, record.args))
 
         return record
 
