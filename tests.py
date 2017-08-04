@@ -35,11 +35,15 @@ def handler():
 
 @pytest.fixture
 def logger(handler):
+    patch_logging()
+
     KeyValueMutator.DELIMITER = ", "
     handler, queue = handler
 
     l = logging.getLogger("root")
     l.addHandler(handler)
+    l.setLevel("INFO")
+    l.mutators = []
 
     return l, queue
 
@@ -95,6 +99,7 @@ def test_dictconfig_with_patch():
 
     dictConfig({
         "version": 1,
+        "disable_existing_loggers": False,
         "handlers": {
             'default': {
                 'level': 'NOTSET',
@@ -113,6 +118,20 @@ def test_dictconfig_with_patch():
 
     assert logging.getLogger("olala").originalLogger.isEnabledFor(logging.INFO)
 
+@pytest.mark.test_logger_bind
+def test_logger_bind(logger):
+
+    logger, q = logger
+
+    global_context.addMutator(KeyValueMutator())
+
+    assert isinstance(logger, LoggerWrapper)
+    bindedLogger = logger.bind(key="value")
+    bindedLogger.info("Olala")
+    assert q[-1] == "Olala key=value"
+
+    logger.info("Olala")
+    assert q[-1] == "Olala"
 
 def test_logger_context(handler):
     handler, queue = handler

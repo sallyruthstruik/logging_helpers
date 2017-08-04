@@ -4,3 +4,4 @@
 .tox
 dist
 *.egg-info
+Dockerfile

@@ -1,3 +1,4 @@
+# coding=utf-8
 import copy
 import logging
 import threading
@@ -44,7 +45,10 @@ class _Context(object):
     def addMutator(self, mutator):
         assert isinstance(mutator, Mutator)
 
-        self.mutators.append(mutator)
+        if mutator.__class__ not in {
+            m.__class__ for m in self.mutators
+        }:
+            self.mutators.append(mutator)
 
     def getContext(self):
         self._check_data()
@@ -100,20 +104,21 @@ class KeyValueMutator(Mutator):
         if pairs:
             pairs.sort(key=lambda k: k[0])
 
-        record.msg += " "+self.DELIMITER.join(
-            "{}=%s".format(key)
-            for key, _ in pairs
-        )
+        if pairs:
+            record.msg += " "+self.DELIMITER.join(
+                "{}=%s".format(key)
+                for key, _ in pairs
+            )
 
-        acc = tuple(
-            v for _, v in pairs
-        )
-        if not isinstance(record.args, tuple):
-            record.args = (record.args, ) + acc
-        else:
-            record.args += acc
+            acc = tuple(
+                v for _, v in pairs
+            )
+            if not isinstance(record.args, tuple):
+                record.args = (record.args, ) + acc
+            else:
+                record.args += acc
 
-        record.args = tuple(map(to_string, record.args))
+            record.args = tuple(map(to_string, record.args))
 
         return record
 
@@ -128,9 +133,19 @@ class LoggerWrapper(logging.Logger):
         cls.cache.setdefault(id(logger), cls(logger))
         return cls.cache[id(logger)]
 
+    def bind(self, **context):
+        #type: ()->LoggerWrapper
+        """
+        Работает аналогично .bind у structlog. Возвращает новый логгер с сохраненным контекстом
+        """
+        output = LoggerWrapper(self.originalLogger)
+        output.context.update(context)
+        return output
+
     def __init__(self, originalLogger):
         self.originalLogger = originalLogger
         self.mutators = []  #type: list[Mutator]
+        self.context = {}
 
         #patch handle
         self._originalHandle = self.originalLogger.handle
@@ -168,6 +183,9 @@ class LoggerWrapper(logging.Logger):
         extra.update({
             key:value for key, value in six.iteritems(kwargs) if key not in RESERVED_KEYWORDS
         })
+
+        #add custom context
+        extra.update(self.context)
 
         self.originalLogger._log(level, msg, args, exc_info, extra)
 
