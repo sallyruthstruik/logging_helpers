@@ -133,6 +133,10 @@ def test_logger_bind(logger):
     logger.info("Olala")
     assert q[-1] == "Olala"
 
+    doubleBind = bindedLogger.bind(key2="value2")
+    doubleBind.info("Olala")
+    assert q[-1] == "Olala key=value, key2=value2"
+
 def test_logger_context(handler):
     handler, queue = handler
 

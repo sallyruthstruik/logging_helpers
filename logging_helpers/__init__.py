@@ -139,6 +139,7 @@ class LoggerWrapper(logging.Logger):
         Работает аналогично .bind у structlog. Возвращает новый логгер с сохраненным контекстом
         """
         output = LoggerWrapper(self.originalLogger)
+        output.context.update(self.context)
         output.context.update(context)
         return output
 
