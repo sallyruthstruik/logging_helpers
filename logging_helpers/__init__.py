@@ -92,33 +92,28 @@ RESERVED_KEYWORDS = [
     "stack_info"
 ]
 
+#TODO: добавлять значения напрямую, вместо пробрасывания в kwargs
 class KeyValueMutator(Mutator):
     DELIMITER = "\n"
+
     def mutate(self, record):
-        pairs = []
+        try:
+            pairs = []
 
-        for key, value in six.iteritems(record.__dict__):
-            if key not in RESERVED_KEYWORDS:
-                pairs.append([key, value])
+            for key, value in six.iteritems(record.__dict__):
+                if key not in RESERVED_KEYWORDS:
+                    pairs.append([key, value])
 
-        if pairs:
-            pairs.sort(key=lambda k: k[0])
+            if pairs:
+                pairs.sort(key=lambda k: k[0])
 
-        if pairs:
-            record.msg += " "+self.DELIMITER.join(
-                "{}=%s".format(key)
-                for key, _ in pairs
-            )
-
-            acc = tuple(
-                v for _, v in pairs
-            )
-            if not isinstance(record.args, tuple):
-                record.args = (record.args, ) + acc
-            else:
-                record.args += acc
-
-            record.args = tuple(map(to_string, record.args))
+            if pairs:
+                record.msg = str(record.msg) + " "+self.DELIMITER.join(
+                    "{}={}".format(key, value)
+                    for key, value in pairs
+                )
+        except:
+            pass
 
         return record
 
